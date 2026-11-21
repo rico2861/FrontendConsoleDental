@@ -1,4 +1,4 @@
-// ═══ DENTAL LIGHT — Console SaaS (frontend admin, responsive) ═══════════════
+// ═══ DENTAL — Console SaaS (frontend admin, responsive) ═══════════════
 const $app = document.getElementById('app')
 const api = async (p, body, method) => {
   const r = await fetch((window.DL_API || '') + '/admin/api' + p, { method: method || (body ? 'POST' : 'GET'), credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -27,7 +27,7 @@ let ME = null
 function loginView(msg) {
   $app.innerHTML = `<div class="login"><div class="login-card">
     <div class="mark">D</div>
-    <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Console DENTAL LIGHT</h2>
+    <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Console DENTAL</h2>
     <p class="muted" style="margin:0 0 6px;font-size:13.5px">Administration des abonnements</p>
     <div id="le" class="err" style="display:${msg ? 'block' : 'none'}">${esc(msg || '')}</div>
     <div class="field"><label>E-mail</label><input id="lm" type="email" autocomplete="username"></div>
@@ -47,10 +47,10 @@ const NAV = [['/', 'overview', 'Vue globale'], ['/clinics', 'clinics', 'Clinique
 function shell(active, body) {
   const links = NAV.map(([h, ic, l]) => `<a href="#${h}" class="${active === h ? 'on' : ''}">${svg(ic)}<span>${l}</span></a>`).join('')
   $app.innerHTML = `<div class="shell">
-    <nav class="rail"><div class="brand"><span class="mark" style="width:28px;height:28px;font-size:14px;border-radius:8px">D</span><span>DENTAL LIGHT</span></div>
+    <nav class="rail"><div class="brand"><span class="mark" style="width:28px;height:28px;font-size:14px;border-radius:8px">D</span><span>DENTAL</span></div>
       ${links}<div class="spacer"></div><a href="#" id="logout">${svg('logout')}<span>Déconnexion</span></a>
       <div class="who">${esc(ME?.email || '')}</div></nav>
-    <main class="main"><div class="topbar"><span class="mark">D</span> Console DENTAL LIGHT</div><div id="view">${body}</div></main></div>`
+    <main class="main"><div class="topbar"><span class="mark">D</span> Console DENTAL</div><div id="view">${body}</div></main></div>`
   document.getElementById('logout').onclick = async e => { e.preventDefault(); await api('/logout', {}); ME = null; location.hash = ''; start() }
 }
 const h = (title, sub, actions = '') => `<div class="page-h"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="actions">${actions}</div></div>`
@@ -76,7 +76,7 @@ async function overview() {
     </div>
     <div class="grid k2">
       <div class="card"><div class="sect-h"><h3>Activité récente</h3><span class="count">${o.recentEvents.length}</span></div><div class="list">${feed}</div></div>
-      <div class="card"><div class="sect-h"><h3>À traiter</h3><span class="count">${alerts.length}</span></div><div class="list">${alerts.join('') || '<div class="empty">Rien à signaler 🎉</div>'}</div></div>
+      <div class="card"><div class="sect-h"><h3>À traiter</h3><span class="count">${alerts.length}</span></div><div class="list">${alerts.join('') || '<div class="empty">Rien à signaler</div>'}</div></div>
     </div>`)
 }
 const evColor = t => /revoke|suspend|reject|fail/.test(t) ? 'var(--bad)' : /payment_conf|renew|activation|reinstate/.test(t) ? 'var(--ok)' : /payment_created|backup/.test(t) ? 'var(--warn)' : 'var(--faint)'
@@ -124,7 +124,7 @@ async function clinicDetail(id) {
       </div></div>`
   const tabBtn = (k, l, n) => `<button class="${TAB === k ? 'on' : ''}" data-tab="${k}">${l}${n != null ? ` (${n})` : ''}</button>`
   const tabs = `<div class="tabs">${tabBtn('hosts', 'Postes', d.hosts.length)}${tabBtn('licenses', 'Licences', d.licenses.length)}${tabBtn('payments', 'Paiements', d.payments.length)}${tabBtn('backups', 'Sauvegardes', d.backups.length)}${tabBtn('events', 'Journal', d.events.length)}</div>`
-  shell('/clinics', `<a href="#/clinics" class="muted" style="text-decoration:none;font-size:13px">← Toutes les cliniques</a>` + head + tabs + `<div class="card ov-table" id="tabc">${tabContent(d)}</div>`)
+  shell('/clinics', `<a href="#/clinics" class="muted" style="text-decoration:none;font-size:13px">Retour aux cliniques</a>` + head + tabs + `<div class="card ov-table" id="tabc">${tabContent(d)}</div>`)
 
   $app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; $app.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b)); document.getElementById('tabc').innerHTML = tabContent(d) })
   wireCopy()
