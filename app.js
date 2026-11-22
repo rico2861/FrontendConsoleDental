@@ -30,7 +30,8 @@ const badge = s => { const [l, c] = STAT[s] || [s, 'b-none']; return `<span clas
 const IC = {
   overview: '<path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/>', clinics: '<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3M9 9v.01M9 13v.01M9 17v.01"/>',
   pay: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>', backup: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/>',
-  journal: '<path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>', logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'
+  journal: '<path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>', logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 }
 const svg = k => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`
 
@@ -63,7 +64,7 @@ function loginView(msg) {
 }
 
 // ─── Coquille ────────────────────────────────────────────────────────────────
-const NAV = [['/', 'overview', 'Vue globale'], ['/clinics', 'clinics', 'Cliniques'], ['/payments', 'pay', 'Paiements'], ['/backups', 'backup', 'Sauvegardes'], ['/journal', 'journal', 'Journal']]
+const NAV = [['/', 'overview', 'Vue globale'], ['/clinics', 'clinics', 'Cliniques'], ['/payments', 'pay', 'Paiements'], ['/backups', 'backup', 'Sauvegardes'], ['/journal', 'journal', 'Journal'], ['/settings', 'settings', 'Paramètres']]
 function shell(active, body) {
   const links = NAV.map(([h, ic, l]) => `<a href="#${h}" class="${active === h ? 'on' : ''}">${svg(ic)}<span>${l}</span></a>`).join('')
   $app.innerHTML = `<div class="shell">
@@ -201,7 +202,7 @@ const lics = d => d.licenses.length ? table(['Licence', 'Formule', 'Émise', 'Ex
   d.licenses.map(l => [`<code>${l.lid.slice(0, 8)}</code>`, l.plan === '1y' ? '1 an' : l.plan === '1m' ? '1 mois' : 'essai', D(l.issued_at), D(l.expires_at), l.revoked ? badge('revoked') : badge('active'), l.revoked ? '' : `<button class="btn sm danger" data-revoke="${l.lid}">Révoquer</button>`])) : empty('Aucune licence émise')
 const pays = d => d.payments.length ? table(['Date', 'Méthode', 'Formule', 'Montant', 'Référence', 'Statut', ''],
   d.payments.map(p => [D(p.created_at), p.method, p.plan === '1y' ? '1 an' : '1 mois', money(p.amount, p.currency), txCell(p), payBadge(p.status),
-    p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''])) : empty('Aucun paiement')
+    `${p.proof_url ? `<button class="btn sm sec" data-proof="${p.id}">Preuve</button> ` : ''}${p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''}`])) : empty('Aucun paiement')
 const baks = d => d.backups.length ? table(['Date', 'Taille', 'Vérifiée', 'Emplacement'],
   d.backups.map(b => [D(b.created_at) + ' ' + new Date(b.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), b.size_bytes ? (b.size_bytes / 1048576).toFixed(1) + ' Mo' : '—', b.verified ? badge('ok') : badge('bad'), `<code>${esc(b.location || '—')}</code>`])) : empty('Aucune sauvegarde reçue')
 const evs = d => d.events.length ? `<div class="list">${d.events.map(e => `<div class="row"><span class="dot" style="background:${evColor(e.type)}"></span><div class="gro"><div class="ti">${evLabel(e.type)}</div><div class="me">${rel(e.created_at)} — ${esc(JSON.stringify(e.data).slice(0, 80))}</div></div></div>`).join('')}</div>` : empty('Journal vide')
@@ -212,7 +213,7 @@ const empty = m => `<div class="empty">${m}</div>`
 async function payments() {
   shell('/payments', '<div class="muted">Chargement…</div>')
   const all = await api('/payments')
-  const row = p => `<tr><td><b>${esc(p.clinic_name)}</b></td><td>${D(p.created_at)}</td><td>${p.method}</td><td>${p.plan === '1y' ? '1 an' : '1 mois'}</td><td class="num tnum">${money(p.amount, p.currency)}</td><td>${txCell(p)}</td><td>${payBadge(p.status)}</td><td>${p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier MonCash</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''}</td></tr>`
+  const row = p => `<tr><td><b>${esc(p.clinic_name)}</b></td><td>${D(p.created_at)}</td><td>${p.method}</td><td>${p.plan === '1y' ? '1 an' : '1 mois'}</td><td class="num tnum">${money(p.amount, p.currency)}</td><td>${txCell(p)}</td><td>${payBadge(p.status)}</td><td>${p.proof_url ? `<button class="btn sm sec" data-proof="${p.id}">Preuve</button> ` : ''}${p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier MonCash</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''}</td></tr>`
   const pend = all.filter(p => p.status === 'pending'), done = all.filter(p => p.status !== 'pending')
   shell('/payments', h('Paiements', `${pend.length} en attente de confirmation`) + `
     <div class="card ov-table" style="margin-bottom:16px"><div class="sect-h"><h3>À confirmer</h3><span class="count">${pend.length}</span></div>${pend.length ? `<table class="tbl"><thead><tr><th>Clinique</th><th>Date</th><th>Méthode</th><th>Formule</th><th>Montant</th><th>Référence</th><th>Statut</th><th></th></tr></thead><tbody>${pend.map(row).join('')}</tbody></table>` : empty('Rien à confirmer')}</div>
@@ -230,6 +231,34 @@ async function journal() {
   const ev = await api('/events?limit=200')
   const body = ev.map(e => `<div class="row"><span class="dot" style="background:${evColor(e.type)}"></span><div class="gro"><div class="ti">${evLabel(e.type)} <small>${esc(e.clinic_name || '')}</small></div><div class="me">${D(e.created_at)} ${new Date(e.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · ${esc(JSON.stringify(e.data).slice(0, 100))}</div></div></div>`).join('') || empty('Journal vide')
   shell('/journal', h('Journal', 'Tout ce qui se passe sur la plateforme') + `<div class="card"><div class="list">${body}</div></div>`)
+}
+
+// ─── Paramètres : comptes bancaires ──────────────────────────────────────────
+async function settings() {
+  shell('/settings', '<div class="muted">Chargement…</div>')
+  const list = await api('/bank-accounts')
+  const rows = list.map(b => `<tr><td><b>${esc(b.bank_name)}</b><div class="faint" style="font-size:12px">${esc(b.holder)}</div></td>
+    <td><code>${esc(b.number)}</code></td><td>${esc(b.currency)}</td><td>${esc(b.note || '')}</td>
+    <td>${b.active ? badge('active') : badge('none')}</td>
+    <td><button class="btn sm sec" data-toggle="${b.id}" data-active="${b.active ? 1 : 0}">${b.active ? 'Désactiver' : 'Activer'}</button> <button class="btn sm ghost" data-del="${b.id}">Supprimer</button></td></tr>`).join('')
+    || '<tr><td colspan="6" class="empty">Aucun compte bancaire. Ajoutez-en un : il s’affichera au client qui choisit le virement.</td></tr>'
+  shell('/settings', h('Paramètres', 'Comptes bancaires affichés aux clients pour le paiement par virement', `<button class="btn" id="addb">+ Compte bancaire</button>`) +
+    `<div class="card ov-table"><table class="tbl"><thead><tr><th>Banque</th><th>N° de compte</th><th>Devise</th><th>Note</th><th>Statut</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`)
+  document.getElementById('addb').onclick = bankModal
+  $app.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => { await api('/bank-accounts/' + b.dataset.toggle, { active: b.dataset.active === '0' }, 'PATCH'); toast('Mis à jour'); settings() })
+  $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Supprimer ce compte bancaire ?')) return; await api('/bank-accounts/' + b.dataset.del, {}, 'DELETE'); toast('Supprimé'); settings() })
+}
+function bankModal() {
+  modal('Compte bancaire', `
+    <div class="field"><label>Banque</label><input id="bk-bank" placeholder="Unibank, Sogebank, Capital Bank…"></div>
+    <div class="field"><label>Titulaire du compte</label><input id="bk-holder" placeholder="Dental Assist S.A."></div>
+    <div class="field"><label>N° de compte</label><input id="bk-num"></div>
+    <div class="field"><label>Devise</label><input id="bk-cur" value="HTG"></div>
+    <div class="field"><label>Note (optionnel)</label><input id="bk-note" placeholder="type de compte, agence…"></div>`,
+    async (ov, close) => {
+      await api('/bank-accounts', { bank_name: ov.querySelector('#bk-bank').value.trim(), holder: ov.querySelector('#bk-holder').value.trim(), number: ov.querySelector('#bk-num').value.trim(), currency: ov.querySelector('#bk-cur').value.trim() || 'HTG', note: ov.querySelector('#bk-note').value.trim() })
+      close(); toast('Compte ajouté'); settings()
+    }, 'Ajouter')
 }
 
 // ─── Modals ──────────────────────────────────────────────────────────────────
@@ -314,11 +343,16 @@ function wireActions(reload) {
 function route() {
   const hash = location.hash.replace(/^#/, '') || '/'
   if (hash.startsWith('/clinic/')) return clinicDetail(hash.split('/')[2]).catch(err)
-  const map = { '/': overview, '/clinics': clinics, '/payments': payments, '/backups': backups, '/journal': journal }
+  const map = { '/': overview, '/clinics': clinics, '/payments': payments, '/backups': backups, '/journal': journal, '/settings': settings }
   ;(map[hash] || overview)().catch(err)
 }
 function err(e) { if (e.status === 401) { ME = null; return loginView('Session terminée, reconnectez-vous.') } toast(e.message || 'Erreur', true) }
 window.addEventListener('hashchange', () => ME && route())
+// Ouvre la preuve de virement (URL signée) — écouteur global, partout dans la console.
+document.addEventListener('click', async e => {
+  const pf = e.target.closest('[data-proof]'); if (!pf) return
+  try { const r = await api('/payments/' + pf.dataset.proof + '/proof-url'); window.open(r.url, '_blank') } catch (err) { toast(err.message || 'Preuve indisponible', true) }
+})
 
 async function start() {
   try { ME = await api('/me') } catch { return loginView() }
