@@ -22,7 +22,10 @@ const money = (n, c = 'HTG') => (n == null ? '—' : new Intl.NumberFormat('fr-F
 const D = s => s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const rel = s => { if (!s) return ''; const d = (Date.now() - new Date(s)) / 1000; if (d < 60) return 'à l\'instant'; if (d < 3600) return Math.floor(d / 60) + ' min'; if (d < 86400) return Math.floor(d / 3600) + ' h'; return Math.floor(d / 86400) + ' j' }
 const daysTo = s => Math.ceil((new Date(s) - Date.now()) / 86400000)
-const STAT = { trial: ['Essai', 'b-trial'], active: ['Actif', 'b-active'], grace: ['Grâce', 'b-grace'], expired: ['Expiré', 'b-expired'], suspended: ['Suspendu', 'b-suspended'], none: ['—', 'b-none'] }
+const STAT = { trial: ['Essai', 'b-trial'], active: ['Actif', 'b-active'], grace: ['Grâce', 'b-grace'], expired: ['Expiré', 'b-expired'], suspended: ['Suspendu', 'b-suspended'], none: ['—', 'b-none'],
+  confirmed: ['Confirmé', 'b-active'], pending: ['En attente', 'b-grace'], rejected: ['Rejeté', 'b-expired'], failed: ['Échoué', 'b-expired'] }
+const payBadge = s => badge(s)                                   // statut paiement direct
+const txCell = p => `<code>${esc(p.ref || '—')}</code>${p.moncash_transaction_id ? `<div class="faint" style="font-size:11px">MonCash&nbsp;${esc(p.moncash_transaction_id)}</div>` : p.reference && p.method !== 'moncash' ? `<div class="faint" style="font-size:11px">${esc(p.reference)}</div>` : ''}`
 const badge = s => { const [l, c] = STAT[s] || [s, 'b-none']; return `<span class="badge ${c}">${l}</span>` }
 const IC = {
   overview: '<path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/>', clinics: '<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3M9 9v.01M9 13v.01M9 17v.01"/>',
@@ -37,7 +40,7 @@ let ME = null
 function loginView(msg) {
   $app.innerHTML = `<div class="login"><div class="login-card">
     <div class="mark">D</div>
-    <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Console DENTAL</h2>
+    <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Console Dental Assist</h2>
     <p class="muted" style="margin:0 0 6px;font-size:13.5px">Administration des abonnements</p>
     <div id="le" class="err" style="display:${msg ? 'block' : 'none'}">${esc(msg || '')}</div>
     <div class="field"><label>E-mail</label><input id="lm" type="email" autocomplete="username"></div>
@@ -64,10 +67,10 @@ const NAV = [['/', 'overview', 'Vue globale'], ['/clinics', 'clinics', 'Clinique
 function shell(active, body) {
   const links = NAV.map(([h, ic, l]) => `<a href="#${h}" class="${active === h ? 'on' : ''}">${svg(ic)}<span>${l}</span></a>`).join('')
   $app.innerHTML = `<div class="shell">
-    <nav class="rail"><div class="brand"><span class="mark" style="width:28px;height:28px;font-size:14px;border-radius:8px">D</span><span>DENTAL</span></div>
+    <nav class="rail"><div class="brand"><span class="mark" style="width:28px;height:28px;font-size:14px;border-radius:8px">D</span><span>Dental Assist</span></div>
       ${links}<div class="spacer"></div><a href="#" id="logout">${svg('logout')}<span>Déconnexion</span></a>
       <div class="who">${esc(ME?.email || '')}</div></nav>
-    <main class="main"><div class="topbar"><span class="mark">D</span> Console DENTAL</div><div id="view">${body}</div></main></div>`
+    <main class="main"><div class="topbar"><span class="mark">D</span> Console Dental Assist</div><div id="view">${body}</div></main></div>`
   document.getElementById('logout').onclick = async e => { e.preventDefault(); try { await api('/logout', {}) } catch {} localStorage.removeItem('dl_admin'); ME = null; location.hash = ''; start() }
 }
 const h = (title, sub, actions = '') => `<div class="page-h"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="actions">${actions}</div></div>`
@@ -196,8 +199,8 @@ const hosts = d => d.hosts.length ? table(['Poste', 'Empreinte', 'Version', 'Sta
   d.hosts.map(x => [esc(x.hostname || '—'), `<code>${esc(x.fingerprint.slice(0, 12))}</code>`, esc(x.app_version || '—'), x.status === 'active' ? badge('active') : badge('revoked'), x.last_seen_at ? rel(x.last_seen_at) : '<span class="faint">jamais</span>'])) : empty('Aucun poste activé')
 const lics = d => d.licenses.length ? table(['Licence', 'Formule', 'Émise', 'Expire', 'État', ''],
   d.licenses.map(l => [`<code>${l.lid.slice(0, 8)}</code>`, l.plan === '1y' ? '1 an' : l.plan === '1m' ? '1 mois' : 'essai', D(l.issued_at), D(l.expires_at), l.revoked ? badge('revoked') : badge('active'), l.revoked ? '' : `<button class="btn sm danger" data-revoke="${l.lid}">Révoquer</button>`])) : empty('Aucune licence émise')
-const pays = d => d.payments.length ? table(['Date', 'Méthode', 'Formule', 'Montant', 'Statut', ''],
-  d.payments.map(p => [D(p.created_at), p.method, p.plan === '1y' ? '1 an' : '1 mois', money(p.amount, p.currency), badge(p.status === 'confirmed' ? 'active' : p.status === 'rejected' ? 'revoked' : 'pending'),
+const pays = d => d.payments.length ? table(['Date', 'Méthode', 'Formule', 'Montant', 'Référence', 'Statut', ''],
+  d.payments.map(p => [D(p.created_at), p.method, p.plan === '1y' ? '1 an' : '1 mois', money(p.amount, p.currency), txCell(p), payBadge(p.status),
     p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''])) : empty('Aucun paiement')
 const baks = d => d.backups.length ? table(['Date', 'Taille', 'Vérifiée', 'Emplacement'],
   d.backups.map(b => [D(b.created_at) + ' ' + new Date(b.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), b.size_bytes ? (b.size_bytes / 1048576).toFixed(1) + ' Mo' : '—', b.verified ? badge('ok') : badge('bad'), `<code>${esc(b.location || '—')}</code>`])) : empty('Aucune sauvegarde reçue')
@@ -209,7 +212,7 @@ const empty = m => `<div class="empty">${m}</div>`
 async function payments() {
   shell('/payments', '<div class="muted">Chargement…</div>')
   const all = await api('/payments')
-  const row = p => `<tr><td><b>${esc(p.clinic_name)}</b></td><td>${D(p.created_at)}</td><td>${p.method}</td><td>${p.plan === '1y' ? '1 an' : '1 mois'}</td><td class="num tnum">${money(p.amount, p.currency)}</td><td>${esc(p.reference || '—')}</td><td>${badge(p.status === 'confirmed' ? 'active' : p.status === 'rejected' ? 'revoked' : 'pending')}</td><td>${p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier MonCash</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''}</td></tr>`
+  const row = p => `<tr><td><b>${esc(p.clinic_name)}</b></td><td>${D(p.created_at)}</td><td>${p.method}</td><td>${p.plan === '1y' ? '1 an' : '1 mois'}</td><td class="num tnum">${money(p.amount, p.currency)}</td><td>${txCell(p)}</td><td>${payBadge(p.status)}</td><td>${p.status === 'pending' ? `${p.method === 'moncash' ? `<button class="btn sm sec" data-verify="${p.id}">Vérifier MonCash</button> ` : ''}<button class="btn sm" data-confirm="${p.id}">Confirmer</button> <button class="btn sm ghost" data-reject="${p.id}">Rejeter</button>` : ''}</td></tr>`
   const pend = all.filter(p => p.status === 'pending'), done = all.filter(p => p.status !== 'pending')
   shell('/payments', h('Paiements', `${pend.length} en attente de confirmation`) + `
     <div class="card ov-table" style="margin-bottom:16px"><div class="sect-h"><h3>À confirmer</h3><span class="count">${pend.length}</span></div>${pend.length ? `<table class="tbl"><thead><tr><th>Clinique</th><th>Date</th><th>Méthode</th><th>Formule</th><th>Montant</th><th>Référence</th><th>Statut</th><th></th></tr></thead><tbody>${pend.map(row).join('')}</tbody></table>` : empty('Rien à confirmer')}</div>
