@@ -40,7 +40,9 @@ function loginView(msg) {
     try { await api('/login', { email: lm.value.trim(), password: lp.value }); location.hash = '#/'; start() }
     catch (e) { const le = document.getElementById('le'); le.textContent = e.message; le.style.display = 'block'; b.disabled = false }
   }
-  lb.onclick = go; lp.onkeydown = e => e.key === 'Enter' && go()
+  lb.onclick = go
+  lp.onkeydown = e => { if (e.key === 'Enter') go() }
+  lm.onkeydown = e => { if (e.key === 'Enter') go() }
   document.getElementById('lp-eye').onclick = () => {
     const i = document.getElementById('lp'), show = i.type === 'password'
     i.type = show ? 'text' : 'password'; document.getElementById('lp-eye').textContent = show ? 'Masquer' : 'Afficher'; i.focus()
