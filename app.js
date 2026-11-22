@@ -169,8 +169,10 @@ async function clinicDetail(id) {
         <div class="muted" style="font-size:12.5px;margin-top:7px">${[c.email, c.phone, c.city, c.address].filter(Boolean).map(esc).join('  ·  ') || 'Aucune coordonnée'}</div></div>
       <div class="actions">
         <button class="btn" id="a-pay">Enregistrer un paiement</button>
+        <button class="btn sec" id="a-grant">Donner accès</button>
         <button class="btn sec" id="a-key">Générer une clé</button>
         <button class="btn sec" id="a-brand">Personnaliser</button>
+        <button class="btn sec" id="a-rpw">Réinit. mot de passe</button>
         ${suspended ? '<button class="btn sec" id="a-reinstate">Réactiver</button>' : '<button class="btn danger" id="a-suspend">Suspendre</button>'}
       </div></div>`
   const tabBtn = (k, l, n) => `<button class="${TAB === k ? 'on' : ''}" data-tab="${k}">${l}${n != null ? ` (${n})` : ''}</button>`
@@ -180,8 +182,10 @@ async function clinicDetail(id) {
   $app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; $app.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b)); document.getElementById('tabc').innerHTML = tabContent(d) })
   wireCopy()
   document.getElementById('a-pay').onclick = () => payModal(c)
+  document.getElementById('a-grant').onclick = () => grantModal(c)
   document.getElementById('a-key').onclick = () => keyModal(c)
   document.getElementById('a-brand').onclick = () => brandModal(c, d.subscription)
+  document.getElementById('a-rpw').onclick = async () => { if (!confirm('Réinitialiser le mot de passe du compte clinique ?')) return; const r = await api(`/clinics/${c.id}/reset-password`, {}); showSecret('Nouveau mot de passe du compte clinique (' + esc(r.email) + ')', r.password) }
   document.getElementById('a-suspend') && (document.getElementById('a-suspend').onclick = () => suspendModal(c))
   document.getElementById('a-reinstate') && (document.getElementById('a-reinstate').onclick = async () => { await api(`/clinics/${c.id}/reinstate`, {}); toast('Clinique réactivée'); clinicDetail(id) })
   // actions dans les onglets
@@ -236,17 +240,39 @@ async function journal() {
 // ─── Paramètres : comptes bancaires ──────────────────────────────────────────
 async function settings() {
   shell('/settings', '<div class="muted">Chargement…</div>')
-  const list = await api('/bank-accounts')
-  const rows = list.map(b => `<tr><td><b>${esc(b.bank_name)}</b><div class="faint" style="font-size:12px">${esc(b.holder)}</div></td>
+  const [banks, admins] = await Promise.all([api('/bank-accounts').catch(() => []), api('/admins').catch(() => null)])
+  const bankRows = banks.map(b => `<tr><td><b>${esc(b.bank_name)}</b><div class="faint" style="font-size:12px">${esc(b.holder)}</div></td>
     <td><code>${esc(b.number)}</code></td><td>${esc(b.currency)}</td><td>${esc(b.note || '')}</td>
     <td>${b.active ? badge('active') : badge('none')}</td>
     <td><button class="btn sm sec" data-toggle="${b.id}" data-active="${b.active ? 1 : 0}">${b.active ? 'Désactiver' : 'Activer'}</button> <button class="btn sm ghost" data-del="${b.id}">Supprimer</button></td></tr>`).join('')
     || '<tr><td colspan="6" class="empty">Aucun compte bancaire. Ajoutez-en un : il s’affichera au client qui choisit le virement.</td></tr>'
-  shell('/settings', h('Paramètres', 'Comptes bancaires affichés aux clients pour le paiement par virement', `<button class="btn" id="addb">+ Compte bancaire</button>`) +
-    `<div class="card ov-table"><table class="tbl"><thead><tr><th>Banque</th><th>N° de compte</th><th>Devise</th><th>Note</th><th>Statut</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`)
+  const bankCard = `<div class="card ov-table"><div class="sect-h"><h3>Comptes bancaires (virements)</h3><button class="btn sm" id="addb">+ Compte</button></div>
+    <table class="tbl"><thead><tr><th>Banque</th><th>N° de compte</th><th>Devise</th><th>Note</th><th>Statut</th><th></th></tr></thead><tbody>${bankRows}</tbody></table></div>`
+  const adminCard = admins ? `<div class="card ov-table" style="margin-top:16px"><div class="sect-h"><h3>Administrateurs</h3><button class="btn sm" id="adda">+ Administrateur</button></div>
+    <table class="tbl"><thead><tr><th>E-mail</th><th>Rôle</th><th>Statut</th><th></th></tr></thead><tbody>${admins.map(a => `<tr><td><b>${esc(a.email)}</b></td><td>${a.role === 'owner' ? 'Propriétaire' : 'Équipe'}</td><td>${a.blocked ? badge('suspended') : badge('active')}</td>
+    <td><button class="btn sm sec" data-arole="${a.id}" data-role="${a.role}">${a.role === 'owner' ? '→ Équipe' : '→ Propriétaire'}</button> <button class="btn sm sec" data-ablock="${a.id}" data-blk="${a.blocked ? 0 : 1}">${a.blocked ? 'Débloquer' : 'Bloquer'}</button> <button class="btn sm sec" data-apw="${a.id}">Reset mdp</button> <button class="btn sm ghost" data-adel="${a.id}">Suppr.</button></td></tr>`).join('')}</tbody></table>
+    <p class="muted" style="font-size:12px;padding:10px 14px 0">Seuls les propriétaires gèrent les administrateurs.</p></div>` : ''
+  shell('/settings', h('Paramètres', 'Comptes bancaires et administrateurs de la console') + bankCard + adminCard)
   document.getElementById('addb').onclick = bankModal
   $app.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => { await api('/bank-accounts/' + b.dataset.toggle, { active: b.dataset.active === '0' }, 'PATCH'); toast('Mis à jour'); settings() })
   $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Supprimer ce compte bancaire ?')) return; await api('/bank-accounts/' + b.dataset.del, {}, 'DELETE'); toast('Supprimé'); settings() })
+  const adda = document.getElementById('adda'); if (adda) adda.onclick = adminModal
+  $app.querySelectorAll('[data-arole]').forEach(b => b.onclick = async () => { await api('/admins/' + b.dataset.arole + '/role', { role: b.dataset.role === 'owner' ? 'staff' : 'owner' }, 'PATCH'); toast('Rôle modifié'); settings() })
+  $app.querySelectorAll('[data-ablock]').forEach(b => b.onclick = async () => { try { await api('/admins/' + b.dataset.ablock + '/block', { blocked: b.dataset.blk === '1' }); toast(b.dataset.blk === '1' ? 'Bloqué' : 'Débloqué'); settings() } catch (e) { toast(e.message, true) } })
+  $app.querySelectorAll('[data-apw]').forEach(b => b.onclick = async () => { const r = await api('/admins/' + b.dataset.apw + '/reset-password', {}); showSecret('Nouveau mot de passe administrateur', r.password) })
+  $app.querySelectorAll('[data-adel]').forEach(b => b.onclick = async () => { if (!confirm('Supprimer cet administrateur ?')) return; try { await api('/admins/' + b.dataset.adel, {}, 'DELETE'); toast('Supprimé'); settings() } catch (e) { toast(e.message, true) } })
+}
+function adminModal() {
+  modal('Nouvel administrateur', `
+    <div class="field"><label>E-mail</label><input id="ad-email" type="email"></div>
+    <div class="field"><label>Mot de passe (8 caractères min.)</label><input id="ad-pass" type="text"></div>
+    <div class="field"><label>Rôle</label><select id="ad-role"><option value="staff">Équipe (lecture + actions)</option><option value="owner">Propriétaire (tout, y compris les admins)</option></select></div>`,
+    async (ov, close) => { await api('/admins', { email: ov.querySelector('#ad-email').value.trim(), password: ov.querySelector('#ad-pass').value, role: ov.querySelector('#ad-role').value }); close(); toast('Administrateur créé'); settings() }, 'Créer')
+}
+function showSecret(title, secret) {
+  modal(title, `<p class="muted" style="font-size:13px;margin:0 0 10px">Communiquez-le à la personne, puis invitez-la à le changer. Il ne sera plus affiché.</p>
+    <div class="code" style="font-family:ui-monospace,monospace;font-size:18px;background:var(--accent-soft);color:var(--accent);padding:14px;border-radius:10px;text-align:center;letter-spacing:1px">${esc(secret)}</div>`,
+    async (ov, close) => { await navigator.clipboard.writeText(secret).catch(() => {}); toast('Copié'); close() }, 'Copier et fermer')
 }
 function bankModal() {
   modal('Compte bancaire', `
@@ -284,6 +310,12 @@ function newClinicModal() {
       const c = await api('/clinics', { name: ov.querySelector('#f-name').value.trim(), email: ov.querySelector('#f-email').value.trim(), phone: ov.querySelector('#f-phone').value.trim(), city: ov.querySelector('#f-city').value.trim(), address: ov.querySelector('#f-address').value.trim(), seats: +ov.querySelector('#f-seats').value })
       close(); toast('Clinique créée — code : ' + c.activation_code); location.hash = '#/clinic/' + c.id; route()
     }, 'Créer')
+}
+function grantModal(c) {
+  modal('Donner accès (sans paiement)', `
+    <p class="muted" style="font-size:13px;margin:0 0 10px">Active immédiatement un abonnement et génère une clé de licence, envoyée par e-mail à la clinique.</p>
+    <div class="field"><label>Formule</label><select id="g-plan"><option value="1m">1 mois</option><option value="1y">1 an</option></select></div>`,
+    async (ov, close) => { await api(`/clinics/${c.id}/grant`, { plan: ov.querySelector('#g-plan').value }); close(); toast('Accès accordé — clé générée et envoyée'); clinicDetail(c.id) }, 'Donner accès')
 }
 function payModal(c) {
   modal('Enregistrer un paiement', `
