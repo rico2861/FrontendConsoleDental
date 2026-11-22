@@ -149,3 +149,34 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .pw-wrap input{flex:1;padding-right:88px;width:100%}
 .pw-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--accent);font:650 13px var(--font);cursor:pointer;padding:6px 10px;border-radius:7px}
 .pw-eye:hover{background:var(--accent-soft)}
+
+/* ─── Tableau de bord enrichi ─────────────────────────────────────────────── */
+.mb{margin-bottom:16px}
+.grid.k2b{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.list.scroll{max-height:360px;overflow:auto}
+/* graphiques à barres */
+.chart{display:flex;align-items:flex-end;gap:8px;height:150px;padding:8px 2px 0}
+.bcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%}
+.bwrap{flex:1;width:100%;display:flex;align-items:flex-end;position:relative}
+.bar{width:100%;border-radius:7px 7px 0 0;min-height:4px;position:relative;transition:height .45s cubic-bezier(.2,.7,.3,1)}
+.bar .btip{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--ink);white-space:nowrap;opacity:0;transition:opacity .15s}
+.bcol:hover .btip{opacity:1}
+.blab{font-size:10.5px;color:var(--faint);text-transform:capitalize}
+/* barre de répartition */
+.segbar{display:flex;height:14px;border-radius:8px;overflow:hidden;background:var(--gray-bg);margin:4px 0 14px}
+.segbar span{display:block;height:100%}
+.segleg{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted)}
+.segleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.segleg b{color:var(--ink);margin-left:3px}
+/* squelettes de chargement */
+.skel-b{position:relative;overflow:hidden;background:var(--gray-bg);border-color:transparent}
+.kpi.skel-b{height:92px}
+.skel-b::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);animation:sk 1.2s infinite}
+@keyframes sk{100%{transform:translateX(100%)}}
+@media(max-width:860px){.grid.k2b{grid-template-columns:1fr}}
+
+/* Indicateur de tendance sur les KPI */
+.kpi .sub .trend{display:inline-block;margin-left:4px;font-weight:700;font-size:11.5px;padding:1px 7px;border-radius:99px;vertical-align:middle}
+.trend.up{background:var(--ok-bg);color:var(--ok)}
+.trend.down{background:var(--bad-bg);color:var(--bad)}
+.trend.flat{background:var(--gray-bg);color:var(--muted)}

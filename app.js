@@ -1,12 +1,19 @@
 // ═══ DENTAL — Console SaaS (frontend admin, responsive) ═══════════════
 const $app = document.getElementById('app')
 const ATOK = () => localStorage.getItem('dl_admin') || ''
+// Cache persistant : la dernière vue s'affiche instantanément au retour, puis se rafraîchit.
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem('dlc_' + k)) } catch { return null } },
+  set: (k, v) => { try { localStorage.setItem('dlc_' + k, JSON.stringify(v)) } catch {} },
+  del: k => { try { localStorage.removeItem('dlc_' + k) } catch {} }
+}
 const api = async (p, body, method) => {
   const h = { 'Content-Type': 'application/json' }
   if (ATOK()) h.Authorization = 'Bearer ' + ATOK()
   const r = await fetch((window.DL_API || '') + '/admin/api' + p, { method: method || (body ? 'POST' : 'GET'), credentials: 'include', headers: h, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(j.error || 'Erreur'), { status: r.status, code: j.code })
+  if (method || body) { CACHE.clinics = null; CACHE.overview = null; LS.del('clinics'); LS.del('overview') }  // invalidation après mutation
   return j
 }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -66,36 +73,60 @@ function shell(active, body) {
 const h = (title, sub, actions = '') => `<div class="page-h"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="actions">${actions}</div></div>`
 
 // ─── Vue globale ─────────────────────────────────────────────────────────────
-async function overview() {
-  shell('/', '<div class="muted">Chargement…</div>')
-  const o = await api('/overview')
-  const c = o.counts, rev = o.revenue.map(r => money(r.t, r.currency)).join(' · ') || '0 HTG'
-  const kpi = (lab, val, sub, cls = '') => `<div class="kpi ${cls}"><div class="lab">${lab}</div><div class="val tnum">${val}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`
-  const alertRow = (dot, ti, me, href) => `<a class="row" href="${href || '#'}" style="text-decoration:none;color:inherit"><span class="dot" style="background:${dot}"></span><div class="gro"><div class="ti">${ti}</div><div class="me">${me}</div></div></a>`
+const CACHE = { overview: LS.get('overview'), clinics: LS.get('clinics') }
+const mlab = m => new Date(m + '-01T00:00:00').toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')
+const alertRow = (dot, ti, me, href) => `<a class="row" href="${href || '#'}" style="text-decoration:none;color:inherit"><span class="dot" style="background:${dot}"></span><div class="gro"><div class="ti">${ti}</div><div class="me">${me}</div></div></a>`
+function bars(data, color, fmt) {
+  const max = Math.max(1, ...data.map(d => d.v))
+  return `<div class="chart">${data.map(d => `<div class="bcol"><div class="bwrap"><div class="bar" style="height:${Math.round(d.v / max * 100)}%;background:${color}"><span class="btip">${fmt(d.v)}</span></div></div><div class="blab">${d.k}</div></div>`).join('')}</div>`
+}
+function renderOverview(o) {
+  const c = o.counts
+  const totalRev = (o.revenue || []).reduce((s, r) => s + r.t, 0)
+  const rsA = o.revenueSeries || [], ssA = o.signupsSeries || []
+  const curRev = rsA.length ? rsA[rsA.length - 1].t : 0, prevRev = rsA.length > 1 ? rsA[rsA.length - 2].t : 0
+  const trend = (cur, prev) => {
+    if (prev === 0) return cur > 0 ? `<span class="trend up">nouveau</span>` : ''
+    const p = Math.round((cur - prev) / prev * 100), s = p > 0 ? 'up' : p < 0 ? 'down' : 'flat'
+    return `<span class="trend ${s}">${p > 0 ? '+' : ''}${p}%</span>`
+  }
+  const kpi = (lab, val, sub, { cls = '', tr = '' } = {}) => `<div class="kpi ${cls}"><div class="lab">${lab}</div><div class="val tnum">${val}</div><div class="sub">${sub || ''} ${tr}</div></div>`
   const alerts = []
   o.pendingPayments.forEach(p => alerts.push(alertRow('var(--warn)', `Virement à confirmer — ${esc(p.clinic_name)}`, `${money(p.amount, p.currency)} · ${p.plan === '1y' ? '1 an' : '1 mois'} · ${rel(p.created_at)}`, '#/payments')))
-  o.expiringSoon.forEach(c2 => alerts.push(alertRow('var(--trial)', `Abonnement expire bientôt — ${esc(c2.name)}`, `dans ${daysTo(c2.period_end)} j (${D(c2.period_end)})`, `#/clinic/${c2.id}`)))
+  o.expiringSoon.forEach(c2 => alerts.push(alertRow('var(--trial)', `Expire bientôt — ${esc(c2.name)}`, `dans ${daysTo(c2.period_end)} j (${D(c2.period_end)})`, `#/clinic/${c2.id}`)))
   o.seatsFull.forEach(s => alerts.push(alertRow('var(--bad)', `Sièges pleins — ${esc(s.name)}`, `${s.hosts_used}/${s.seats} postes`, `#/clinic/${s.id}`)))
-  const feed = o.recentEvents.map(e => `<div class="row"><span class="dot" style="background:${evColor(e.type)}"></span><div class="gro"><div class="ti">${evLabel(e.type)} <small>${esc(e.clinic_name || '')}</small></div><div class="me">${rel(e.created_at)}</div></div></div>`).join('') || '<div class="empty">Aucune activité</div>'
-  shell('/', h('Vue globale', 'Tout ce qui transite sur la plateforme, en un coup d’œil') + `
-    <div class="grid k4" style="margin-bottom:16px">
-      ${kpi('Clients actifs', c.active || 0, `${c.trial || 0} en essai`, 'accent')}
-      ${kpi('En grâce / expirés', (c.grace || 0) + (c.expired || 0), `${c.suspended || 0} suspendus`)}
-      ${kpi('Postes actifs', c.hosts || 0, `${c.total} clinique(s)`)}
-      ${kpi('Revenus confirmés', rev.split(' · ')[0], 'cumul')}
+  const feed = o.recentEvents.slice(0, 20).map(e => `<div class="row"><span class="dot" style="background:${evColor(e.type)}"></span><div class="gro"><div class="ti">${evLabel(e.type)} <small>${esc(e.clinic_name || '')}</small></div><div class="me">${rel(e.created_at)}</div></div></div>`).join('') || '<div class="empty">Aucune activité</div>'
+  const seg = [['active', c.active, 'var(--ok)', 'Actifs'], ['trial', c.trial, 'var(--trial)', 'Essais'], ['grace', c.grace, 'var(--warn)', 'Grâce'], ['expired', c.expired, 'var(--bad)', 'Expirés'], ['suspended', c.suspended, 'var(--faint)', 'Suspendus']]
+  const segTotal = Math.max(1, seg.reduce((s, x) => s + (x[1] || 0), 0))
+  const statusBar = `<div class="segbar">${seg.map(([k, n, col]) => (n ? `<span style="width:${n / segTotal * 100}%;background:${col}" title="${k}: ${n}"></span>` : '')).join('')}</div>
+    <div class="segleg">${seg.map(([k, n, col, l]) => `<span><i style="background:${col}"></i>${l} <b>${n || 0}</b></span>`).join('')}</div>`
+  return h('Vue globale', 'Tout ce qui transite sur la plateforme, en temps réel') + `
+    <div class="grid k4 mb">
+      ${kpi('Clients actifs', c.active || 0, `sur ${c.total} clinique(s)`, { cls: 'accent' })}
+      ${kpi('Revenu ce mois', money(o.revenueMonth || 0, o.currency), 'vs mois dernier', { tr: trend(curRev, prevRev) })}
+      ${kpi('Revenu cumulé', money(totalRev, o.currency), 'confirmé')}
+      ${kpi('Revenu mensuel (MRR)', money(o.mrr, o.currency), `conversion ${o.conversion || 0}%`)}
     </div>
-    <div class="grid k2">
-      <div class="card"><div class="sect-h"><h3>Activité récente</h3><span class="count">${o.recentEvents.length}</span></div><div class="list">${feed}</div></div>
+    <div class="grid k2 mb">
+      <div class="card"><div class="sect-h"><h3>Revenus — 6 mois</h3><span class="count">${money(o.revenueMonth || 0, o.currency)} ce mois</span></div>${bars((o.revenueSeries || []).map(r => ({ k: mlab(r.m), v: r.t })), 'var(--accent)', v => money(v, o.currency))}</div>
+      <div class="card"><div class="sect-h"><h3>Nouveaux clients — 6 mois</h3><span class="count">${(o.signupsSeries || []).reduce((s, r) => s + r.n, 0)} au total</span></div>${bars((o.signupsSeries || []).map(r => ({ k: mlab(r.m), v: r.n })), 'var(--trial)', v => v + (v > 1 ? ' clients' : ' client'))}</div>
+    </div>
+    <div class="card mb"><div class="sect-h"><h3>Répartition des cliniques</h3><span class="count">${c.total}</span></div>${statusBar}</div>
+    <div class="grid k2b">
       <div class="card"><div class="sect-h"><h3>À traiter</h3><span class="count">${alerts.length}</span></div><div class="list">${alerts.join('') || '<div class="empty">Rien à signaler</div>'}</div></div>
-    </div>`)
+      <div class="card"><div class="sect-h"><h3>Activité récente</h3><span class="count">${o.recentEvents.length}</span></div><div class="list scroll">${feed}</div></div>
+    </div>`
+}
+function skelOverview() { return h('Vue globale', 'Chargement…') + `<div class="grid k4 mb">${'<div class="kpi skel-b"></div>'.repeat(4)}</div><div class="grid k2 mb">${'<div class="card skel-b" style="height:180px"></div>'.repeat(2)}</div><div class="card skel-b" style="height:150px"></div>` }
+async function overview() {
+  shell('/', CACHE.overview ? renderOverview(CACHE.overview) : skelOverview())
+  try { const o = await api('/overview'); CACHE.overview = o; LS.set('overview', o); shell('/', renderOverview(o)) } catch (e) { err(e) }
 }
 const evColor = t => /revoke|suspend|reject|fail/.test(t) ? 'var(--bad)' : /payment_conf|renew|activation|reinstate/.test(t) ? 'var(--ok)' : /payment_created|backup/.test(t) ? 'var(--warn)' : 'var(--faint)'
 const evLabel = t => ({ clinic_created: 'Nouvelle clinique', activation: 'Poste activé', check: 'Contrôle en ligne', renew: 'Clé renouvelée', payment_created: 'Paiement enregistré', payment_confirmed: 'Paiement confirmé', payment_rejected: 'Paiement rejeté', revoke: 'Licence révoquée', suspend: 'Clinique suspendue', reinstate: 'Clinique réactivée', backup: 'Sauvegarde', updated: 'Mise à jour' }[t] || t)
 
 // ─── Cliniques ───────────────────────────────────────────────────────────────
-async function clinics() {
-  shell('/clinics', '<div class="muted">Chargement…</div>')
-  const rows = await api('/clinics')
+function renderClinics(rows) {
   const body = rows.map(c => {
     const st = c.status === 'suspended' ? 'suspended' : c.effective
     return `<tr class="click" data-go="#/clinic/${c.id}"><td><b>${esc(c.name)}</b><div class="faint" style="font-size:12px">${esc(c.email)}</div></td>
@@ -108,6 +139,11 @@ async function clinics() {
     <div class="card ov-table"><table class="tbl"><thead><tr><th>Clinique</th><th>Statut</th><th>Formule</th><th>Postes</th><th>Fin d’abonnement</th><th>Dernière sauvegarde</th></tr></thead><tbody>${body}</tbody></table></div>`)
   document.getElementById('newc').onclick = newClinicModal
   $app.querySelectorAll('[data-go]').forEach(tr => tr.onclick = () => location.hash = tr.dataset.go)
+}
+function skelList() { return h('Cliniques', 'Chargement…') + `<div class="card skel-b" style="height:280px"></div>` }
+async function clinics() {
+  if (CACHE.clinics) renderClinics(CACHE.clinics); else shell('/clinics', skelList())
+  try { const rows = await api('/clinics'); CACHE.clinics = rows; LS.set('clinics', rows); renderClinics(rows) } catch (e) { err(e) }
 }
 
 // ─── Fiche clinique ──────────────────────────────────────────────────────────
@@ -125,7 +161,8 @@ async function clinicDetail(id) {
         <div class="chips">${badge(st)} ${chip('ID', `<code>${c.id}</code>`)} ${chip('Code', `<code>${esc(c.activation_code || '—')}</code> <button class="copy" data-copy="${esc(c.activation_code || '')}">copier</button>`)}
           ${chip('Formule', d.subscription ? (d.subscription.plan === '1y' ? '1 an' : d.subscription.plan === '1m' ? '1 mois' : 'essai') : '—')}
           ${chip('Postes', `${d.hosts.filter(x => x.status === 'active').length}/${d.subscription?.seats || 0}`)}
-          ${chip('Échéance', D(d.subscription?.period_end))}</div></div>
+          ${chip('Échéance', D(d.subscription?.period_end))}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:7px">${[c.email, c.phone, c.city, c.address].filter(Boolean).map(esc).join('  ·  ') || 'Aucune coordonnée'}</div></div>
       <div class="actions">
         <button class="btn" id="a-pay">Enregistrer un paiement</button>
         <button class="btn sec" id="a-key">Générer une clé</button>
@@ -208,10 +245,11 @@ function newClinicModal() {
     <div class="field"><label>E-mail</label><input id="f-email" type="email"></div>
     <div class="field"><label>Téléphone</label><input id="f-phone"></div>
     <div class="field"><label>Ville</label><input id="f-city"></div>
+    <div class="field"><label>Adresse</label><input id="f-address" placeholder="rue, quartier…"></div>
     <div class="field"><label>Sièges (postes autorisés)</label><input id="f-seats" type="number" value="2" min="1"></div>
     <p class="muted" style="font-size:12.5px;margin:0">Un essai gratuit de 15 jours démarre automatiquement.</p>`,
     async (ov, close) => {
-      const c = await api('/clinics', { name: ov.querySelector('#f-name').value.trim(), email: ov.querySelector('#f-email').value.trim(), phone: ov.querySelector('#f-phone').value.trim(), city: ov.querySelector('#f-city').value.trim(), seats: +ov.querySelector('#f-seats').value })
+      const c = await api('/clinics', { name: ov.querySelector('#f-name').value.trim(), email: ov.querySelector('#f-email').value.trim(), phone: ov.querySelector('#f-phone').value.trim(), city: ov.querySelector('#f-city').value.trim(), address: ov.querySelector('#f-address').value.trim(), seats: +ov.querySelector('#f-seats').value })
       close(); toast('Clinique créée — code : ' + c.activation_code); location.hash = '#/clinic/' + c.id; route()
     }, 'Créer')
 }
@@ -249,9 +287,10 @@ function brandModal(c, sub) {
     <div class="field"><label>Nom affiché</label><input id="b-name" value="${esc(c.display_name || c.name)}"></div>
     <div class="field"><label>Couleur de marque</label><input id="b-color" type="color" value="${esc(c.brand_color || '#0f766e')}" style="height:42px;padding:4px"></div>
     <div class="field"><label>Logo (URL)</label><input id="b-logo" value="${esc(c.logo_url || '')}" placeholder="https://…"></div>
+    <div class="field"><label>Adresse</label><input id="b-address" value="${esc(c.address || '')}" placeholder="rue, quartier…"></div>
     <div class="field"><label>Sièges (postes autorisés)</label><input id="b-seats" type="number" min="1" value="${sub?.seats || 2}"></div>`,
     async (ov, close) => {
-      await api('/clinics/' + c.id, { display_name: ov.querySelector('#b-name').value.trim(), brand_color: ov.querySelector('#b-color').value, logo_url: ov.querySelector('#b-logo').value.trim(), seats: +ov.querySelector('#b-seats').value }, 'PATCH')
+      await api('/clinics/' + c.id, { display_name: ov.querySelector('#b-name').value.trim(), brand_color: ov.querySelector('#b-color').value, logo_url: ov.querySelector('#b-logo').value.trim(), address: ov.querySelector('#b-address').value.trim(), seats: +ov.querySelector('#b-seats').value }, 'PATCH')
       close(); toast('Enregistré'); clinicDetail(c.id)
     })
 }
