@@ -1,7 +1,10 @@
 // ═══ DENTAL — Console SaaS (frontend admin, responsive) ═══════════════
 const $app = document.getElementById('app')
+const ATOK = () => localStorage.getItem('dl_admin') || ''
 const api = async (p, body, method) => {
-  const r = await fetch((window.DL_API || '') + '/admin/api' + p, { method: method || (body ? 'POST' : 'GET'), credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+  const h = { 'Content-Type': 'application/json' }
+  if (ATOK()) h.Authorization = 'Bearer ' + ATOK()
+  const r = await fetch((window.DL_API || '') + '/admin/api' + p, { method: method || (body ? 'POST' : 'GET'), credentials: 'include', headers: h, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(j.error || 'Erreur'), { status: r.status, code: j.code })
   return j
@@ -37,7 +40,7 @@ function loginView(msg) {
   </div></div>`
   const go = async () => {
     const b = document.getElementById('lb'); b.disabled = true
-    try { await api('/login', { email: lm.value.trim(), password: lp.value }); location.hash = '#/'; start() }
+    try { const r = await api('/login', { email: lm.value.trim(), password: lp.value }); if (r.token) localStorage.setItem('dl_admin', r.token); location.hash = '#/'; start() }
     catch (e) { const le = document.getElementById('le'); le.textContent = e.message; le.style.display = 'block'; b.disabled = false }
   }
   lb.onclick = go
@@ -58,7 +61,7 @@ function shell(active, body) {
       ${links}<div class="spacer"></div><a href="#" id="logout">${svg('logout')}<span>Déconnexion</span></a>
       <div class="who">${esc(ME?.email || '')}</div></nav>
     <main class="main"><div class="topbar"><span class="mark">D</span> Console DENTAL</div><div id="view">${body}</div></main></div>`
-  document.getElementById('logout').onclick = async e => { e.preventDefault(); await api('/logout', {}); ME = null; location.hash = ''; start() }
+  document.getElementById('logout').onclick = async e => { e.preventDefault(); try { await api('/logout', {}) } catch {} localStorage.removeItem('dl_admin'); ME = null; location.hash = ''; start() }
 }
 const h = (title, sub, actions = '') => `<div class="page-h"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="actions">${actions}</div></div>`
 
