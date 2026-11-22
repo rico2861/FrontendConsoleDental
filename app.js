@@ -31,7 +31,8 @@ function loginView(msg) {
     <p class="muted" style="margin:0 0 6px;font-size:13.5px">Administration des abonnements</p>
     <div id="le" class="err" style="display:${msg ? 'block' : 'none'}">${esc(msg || '')}</div>
     <div class="field"><label>E-mail</label><input id="lm" type="email" autocomplete="username"></div>
-    <div class="field"><label>Mot de passe</label><input id="lp" type="password" autocomplete="current-password"></div>
+    <div class="field"><label>Mot de passe</label>
+      <div class="pw-wrap"><input id="lp" type="password" autocomplete="current-password"><button type="button" class="pw-eye" id="lp-eye">Afficher</button></div></div>
     <button class="btn block" id="lb" style="margin-top:6px">Se connecter</button>
   </div></div>`
   const go = async () => {
@@ -40,6 +41,10 @@ function loginView(msg) {
     catch (e) { const le = document.getElementById('le'); le.textContent = e.message; le.style.display = 'block'; b.disabled = false }
   }
   lb.onclick = go; lp.onkeydown = e => e.key === 'Enter' && go()
+  document.getElementById('lp-eye').onclick = () => {
+    const i = document.getElementById('lp'), show = i.type === 'password'
+    i.type = show ? 'text' : 'password'; document.getElementById('lp-eye').textContent = show ? 'Masquer' : 'Afficher'; i.focus()
+  }
 }
 
 // ─── Coquille ────────────────────────────────────────────────────────────────

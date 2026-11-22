@@ -143,3 +143,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
   .detail-h .actions .btn{flex:1}
   .ov-table{overflow-x:auto}
 }
+
+/* Champ mot de passe : collage autorisé + bouton Afficher/Masquer */
+.pw-wrap{position:relative;display:flex;align-items:center}
+.pw-wrap input{flex:1;padding-right:88px;width:100%}
+.pw-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--accent);font:650 13px var(--font);cursor:pointer;padding:6px 10px;border-radius:7px}
+.pw-eye:hover{background:var(--accent-soft)}
