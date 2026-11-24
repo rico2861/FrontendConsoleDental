@@ -12,7 +12,10 @@ const api = async (p, body, method) => {
   if (ATOK()) h.Authorization = 'Bearer ' + ATOK()
   const r = await fetch((window.DL_API || '') + '/admin/api' + p, { method: method || (body ? 'POST' : 'GET'), credentials: 'include', headers: h, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw Object.assign(new Error(j.error || 'Erreur'), { status: r.status, code: j.code })
+  if (!r.ok) {
+    if (r.status === 401 && p !== '/login' && p !== '/bootstrap') { localStorage.removeItem('dl_admin'); ME = null; renderLoginCard('Session expirée, reconnectez-vous.') }
+    throw Object.assign(new Error(j.error || 'Erreur'), { status: r.status, code: j.code })
+  }
   if (method || body) { CACHE.clinics = null; CACHE.overview = null; LS.del('clinics'); LS.del('overview') }  // invalidation après mutation
   return j
 }
@@ -283,8 +286,12 @@ async function settings() {
     <table class="tbl"><thead><tr><th>E-mail</th><th>Rôle</th><th>Statut</th><th></th></tr></thead><tbody>${admins.map(a => `<tr><td><b>${esc(a.email)}</b></td><td>${a.role === 'owner' ? 'Propriétaire' : 'Équipe'}</td><td>${a.blocked ? badge('suspended') : badge('active')}</td>
     <td><button class="btn sm sec" data-arole="${a.id}" data-role="${a.role}">${a.role === 'owner' ? '→ Équipe' : '→ Propriétaire'}</button> <button class="btn sm sec" data-ablock="${a.id}" data-blk="${a.blocked ? 0 : 1}">${a.blocked ? 'Débloquer' : 'Bloquer'}</button> <button class="btn sm sec" data-apw="${a.id}">Reset mdp</button> <button class="btn sm ghost" data-adel="${a.id}">Suppr.</button></td></tr>`).join('')}</tbody></table>
     <p class="muted" style="font-size:12px;padding:10px 14px 0">Seuls les propriétaires gèrent les administrateurs.</p></div>` : ''
-  shell('/settings', h('Paramètres', 'Comptes bancaires et administrateurs de la console') + bankCard + adminCard)
+  const sessionCard = admins ? `<div class="card ov-table" style="margin-top:16px"><div class="sect-h"><h3>Sessions</h3></div>
+    <div style="padding:14px 16px"><p class="muted" style="font-size:13px;margin:0 0 10px">Les sessions expirent automatiquement après inactivité (console ≈ 30 min, espace client ≈ 2 h). Ce bouton déconnecte <b>immédiatement toutes</b> les sessions ouvertes — administrateurs et espaces clients. Vous resterez connecté.</p>
+    <button class="btn sec" id="revall">Déconnecter toutes les sessions</button></div></div>` : ''
+  shell('/settings', h('Paramètres', 'Comptes bancaires, administrateurs et sessions') + bankCard + adminCard + sessionCard)
   document.getElementById('addb').onclick = bankModal
+  const rv = document.getElementById('revall'); if (rv) rv.onclick = async () => { if (!confirm('Déconnecter toutes les sessions (administrateurs + espaces clients) ? Chacun devra se reconnecter.')) return; try { await api('/sessions/revoke-all', {}); toast('Toutes les sessions ont été fermées') } catch (e) { toast(e.message, true) } }
   $app.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => { await api('/bank-accounts/' + b.dataset.toggle, { active: b.dataset.active === '0' }, 'PATCH'); toast('Mis à jour'); settings() })
   $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Supprimer ce compte bancaire ?')) return; await api('/bank-accounts/' + b.dataset.del, {}, 'DELETE'); toast('Supprimé'); settings() })
   const adda = document.getElementById('adda'); if (adda) adda.onclick = adminModal
