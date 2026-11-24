@@ -39,6 +39,17 @@ let ME = null
 
 // ─── Connexion ───────────────────────────────────────────────────────────────
 function loginView(msg) {
+  renderLoginCard(msg)
+  // Première mise en route : aucun admin → formulaire d'amorçage (code à usage unique).
+  api('/state').then(s => { if (s && s.needs_bootstrap) renderBootstrapCard() }).catch(() => {})
+}
+function pwEye(inId, eyeId) {
+  document.getElementById(eyeId).onclick = () => {
+    const i = document.getElementById(inId), show = i.type === 'password'
+    i.type = show ? 'text' : 'password'; document.getElementById(eyeId).textContent = show ? 'Masquer' : 'Afficher'; i.focus()
+  }
+}
+function renderLoginCard(msg) {
   $app.innerHTML = `<div class="login"><div class="login-card">
     <div class="mark">D</div>
     <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Console Dental Assist</h2>
@@ -57,10 +68,30 @@ function loginView(msg) {
   lb.onclick = go
   lp.onkeydown = e => { if (e.key === 'Enter') go() }
   lm.onkeydown = e => { if (e.key === 'Enter') go() }
-  document.getElementById('lp-eye').onclick = () => {
-    const i = document.getElementById('lp'), show = i.type === 'password'
-    i.type = show ? 'text' : 'password'; document.getElementById('lp-eye').textContent = show ? 'Masquer' : 'Afficher'; i.focus()
+  pwEye('lp', 'lp-eye')
+}
+function renderBootstrapCard() {
+  $app.innerHTML = `<div class="login"><div class="login-card">
+    <div class="mark">D</div>
+    <h2 style="margin:16px 0 2px;font-size:20px;letter-spacing:-.4px">Créer l'administrateur</h2>
+    <p class="muted" style="margin:0 0 6px;font-size:13.5px">Première mise en route — saisissez le code affiché dans les logs du serveur (BOOT-…).</p>
+    <div id="be" class="err" style="display:none"></div>
+    <div class="field"><label>E-mail</label><input id="bm" type="email" autocomplete="username" placeholder="admin@dentalassist.ht"></div>
+    <div class="field"><label>Mot de passe (10 caractères min.)</label>
+      <div class="pw-wrap"><input id="bp" type="password" autocomplete="new-password"><button type="button" class="pw-eye" id="bp-eye">Afficher</button></div></div>
+    <div class="field"><label>Code d'amorçage</label><input id="bt" placeholder="BOOT-…"></div>
+    <button class="btn block" id="bb" style="margin-top:6px">Créer et se connecter</button>
+    <p class="muted" style="font-size:12.5px;margin-top:12px">Déjà un compte ? <a href="#" id="b-back">Se connecter</a></p>
+  </div></div>`
+  const go = async () => {
+    const b = document.getElementById('bb'); b.disabled = true
+    try { const r = await api('/bootstrap', { email: bm.value.trim(), password: bp.value, token: bt.value.trim() }); if (r.token) localStorage.setItem('dl_admin', r.token); location.hash = '#/'; start() }
+    catch (e) { const be = document.getElementById('be'); be.textContent = e.message; be.style.display = 'block'; b.disabled = false }
   }
+  bb.onclick = go
+  bt.onkeydown = e => { if (e.key === 'Enter') go() }
+  pwEye('bp', 'bp-eye')
+  document.getElementById('b-back').onclick = e => { e.preventDefault(); renderLoginCard() }
 }
 
 // ─── Coquille ────────────────────────────────────────────────────────────────
