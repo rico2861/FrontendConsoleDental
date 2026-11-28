@@ -274,7 +274,13 @@ async function journal() {
 // ─── Paramètres : comptes bancaires ──────────────────────────────────────────
 async function settings() {
   shell('/settings', '<div class="muted">Chargement…</div>')
-  const [banks, admins] = await Promise.all([api('/bank-accounts').catch(() => []), api('/admins').catch(() => null)])
+  const [banks, admins, prices] = await Promise.all([api('/bank-accounts').catch(() => []), api('/admins').catch(() => null), api('/prices').catch(() => ({}))])
+  const pricesCard = admins ? `<div class="card ov-table" style="margin-top:16px"><div class="sect-h"><h3>Tarifs des abonnements</h3></div>
+    <div style="padding:14px 16px"><p class="muted" style="font-size:13px;margin:0 0 12px">Ces prix s'affichent aux cliniques lors du paiement. Devise : ${esc(prices.currency || 'HTG')}.</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600">1 mois<input id="pr-m" type="number" min="0" value="${Number(prices['1m']) || 1500}" style="padding:9px 12px;border:1.5px solid #d7e1f1;border-radius:9px;width:140px"></label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600">1 an<input id="pr-y" type="number" min="0" value="${Number(prices['1y']) || 15000}" style="padding:9px 12px;border:1.5px solid #d7e1f1;border-radius:9px;width:140px"></label>
+      <button class="btn" id="pr-save">Enregistrer les tarifs</button></div></div></div>` : ''
   const bankRows = banks.map(b => `<tr><td><b>${esc(b.bank_name)}</b><div class="faint" style="font-size:12px">${esc(b.holder)}</div></td>
     <td><code>${esc(b.number)}</code></td><td>${esc(b.currency)}</td><td>${esc(b.note || '')}</td>
     <td>${b.active ? badge('active') : badge('none')}</td>
@@ -289,7 +295,8 @@ async function settings() {
   const sessionCard = admins ? `<div class="card ov-table" style="margin-top:16px"><div class="sect-h"><h3>Sessions</h3></div>
     <div style="padding:14px 16px"><p class="muted" style="font-size:13px;margin:0 0 10px">Les sessions expirent automatiquement après inactivité (console ≈ 30 min, espace client ≈ 2 h). Ce bouton déconnecte <b>immédiatement toutes</b> les sessions ouvertes — administrateurs et espaces clients. Vous resterez connecté.</p>
     <button class="btn sec" id="revall">Déconnecter toutes les sessions</button></div></div>` : ''
-  shell('/settings', h('Paramètres', 'Comptes bancaires, administrateurs et sessions') + bankCard + adminCard + sessionCard)
+  shell('/settings', h('Paramètres', 'Tarifs, comptes bancaires, administrateurs et sessions') + pricesCard + bankCard + adminCard + sessionCard)
+  const prs = document.getElementById('pr-save'); if (prs) prs.onclick = async () => { try { await api('/prices', { m: document.getElementById('pr-m').value, y: document.getElementById('pr-y').value }, 'PUT'); toast('Tarifs enregistrés') } catch (e) { toast(e.message, true) } }
   document.getElementById('addb').onclick = bankModal
   const rv = document.getElementById('revall'); if (rv) rv.onclick = async () => { if (!confirm('Déconnecter toutes les sessions (administrateurs + espaces clients) ? Chacun devra se reconnecter.')) return; try { await api('/sessions/revoke-all', {}); toast('Toutes les sessions ont été fermées') } catch (e) { toast(e.message, true) } }
   $app.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => { await api('/bank-accounts/' + b.dataset.toggle, { active: b.dataset.active === '0' }, 'PATCH'); toast('Mis à jour'); settings() })
